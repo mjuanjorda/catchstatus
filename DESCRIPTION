@@ -1,0 +1,10 @@
+Package: catchstatus
+Type: Package
+Title: Methods to assign status to fish stocks based on catch series. 
+Version: 0.2
+Date: 2012-03-29
+Author: Sean Anderson
+Maintainer: Sean Anderson <sean@seananderson.ca>
+Description: Functions to assign status to fish stocks based on catch series. Currently implements Froese and Kesner-Reyes 2002 (ICES Council Meeting Report) and Froese et al. 2012 (Mar. Biol.) updated algorithm. Includes functions to plot the output. Will include functions to test the accuracy and bias of the classifications.
+License: GPL (>=2)
+LazyLoad: yes
