@@ -1,7 +1,7 @@
 # ====================================================================
 # Created by:    Sean Anderson, sean@seananderson.ca
 # Created:       Mar 18, 2012
-# Last modified: Mar 19, 2012
+# Last modified: Mar 29, 2012
 # Purpose:       Get the stock status as defined by the updated
 # algorithm in Froese et al. 2012. Mar. Biol.
 # ====================================================================
@@ -28,7 +28,6 @@ d <- data.frame(year = years, catch = catch, status = factor(NA, levels = 1:6, l
 
 c_max <- max(x)
 year_c_max <- years[x == c_max][1]
-year_0.5_c_max <- years[x >= 0.5 * c_max][1]
 
 # Check if Cmax occurs in final year. If it does then increase Cmax by
 # 50% and make it happen one year after the last year.
@@ -41,6 +40,9 @@ if(year_c_max == max(years)) {
   } else {
     c_max_1.5 <- FALSE
 }
+
+year_c_max <- years[x == c_max][1]
+year_0.5_c_max <- years[x >= 0.5 * c_max][1]
 
 # undeveloped
 d[years < year_0.5_c_max & x < 0.1 * c_max, "status"] <- factor(1, levels = 1:6, labels = status_labels)
@@ -57,23 +59,30 @@ d[years >= year_0.5_c_max & x <= 0.5 * c_max & x >= 0.1 * c_max, "status"] <- fa
 # collapsed
 d[years >= year_0.5_c_max & x < 0.1 * c_max, "status"] <- factor(6, levels = 1:6, labels = status_labels) 
 
+# if all 0s then set to undeveloped:
+if(length(unique(d$catch)) == 1 & unique(d$catch)[1] %in% 0) d$status <- factor(1, levels = 1:6, labels = status_labels)
+
 # figure out how many collapsed followed by recoveries there are:
 # check all collapses to see if a full exploited comes after:
   #browser()
 rows_with_collapsed <- (1:nrow(d))[d$status == "Collapsed"]
-rows_where_collapse_begins <- rows_with_collapsed[diff(c(-99, rows_with_collapsed)) != 1]
+#rows_where_collapse_begins <- rows_with_collapsed[diff(c(-99, rows_with_collapsed)) != 1]
+rows_where_collapse_ends <- rows_with_collapsed[diff(c(rows_with_collapsed, 9999)) != 1]
 
 # if the last year is a collapse then we aren't going to deal with it,
 # because it can't recover by definition, so remove it here from the
 # vector:
-rows_where_collapse_begins <- rows_where_collapse_begins[!rows_where_collapse_begins %in% nrow(d)]
+#rows_where_collapse_begins <- rows_where_collapse_begins[!rows_where_collapse_begins %in% nrow(d)]
+rows_where_collapse_ends <- rows_where_collapse_ends[!rows_where_collapse_ends %in% nrow(d)]
 
-n_collapses <- length(rows_where_collapse_begins)
+#n_collapses <- length(rows_where_collapse_begins)
+n_collapses <- length(rows_where_collapse_ends)
 
 # so we can check the last one: (unless the last one is the start of a
 # collapse)
 #if(max(rows_where_collapse_begins) != nrow(d))
-rows_where_collapse_begins <- c(rows_where_collapse_begins, (nrow(d)+1))
+#rows_where_collapse_begins <- c(rows_where_collapse_begins, (nrow(d)+1))
+rows_where_collapse_ends <- c(rows_where_collapse_ends, (nrow(d)+1))
 
 # check if should stay collapsed to end of time series:
 # if there is never a fully exploited after than the whole series
@@ -96,15 +105,23 @@ if(catch[length(years)] >= 0.28 * c_max & c_max_1.5 == FALSE) {
   d <- rbind(d, data.frame(year = 9999, catch = catch[length(years)], status = factor(4, levels = 1:6, labels = status_labels)))
 } 
 
+#browser()
 d$adjusted_status <- d$status
 if(n_collapses > 0) {
-for(i in 1:n_collapses) {
-if(!"Fully exploited" %in% d[(rows_where_collapse_begins[i]+1):nrow(d), "status"]) { # never recovers from here on, so stay collapsed:
-  d[(rows_where_collapse_begins[i] + 1):nrow(d), "adjusted_status"] <- factor(6, levels = 1:6, labels = status_labels) # these are now collapsed
-} else { # there is at least one recovery, so rebuild until the next fully exploited:
-  data_collapse_to_fully_exploited <- d[(rows_where_collapse_begins[i]+1):nrow(d), ]
-  row_with_first_fully_exploited <- (1:nrow(data_collapse_to_fully_exploited))[data_collapse_to_fully_exploited$status == "Fully exploited"][1]
-    d[(rows_where_collapse_begins[i] + 1):(rows_where_collapse_begins[i] + row_with_first_fully_exploited - 1), "adjusted_status"] <- factor(3, levels = 1:6, labels = status_labels) # these are now rebuilding
+  for(i in 1:n_collapses) {
+    rows_to_check <- (rows_where_collapse_ends[i]+1):(rows_where_collapse_ends[i+1])
+    dat_to_check <- d[rows_to_check, "status"]
+    # if it recovers at some point before the next collapse (or end of
+    # the time series) then we need to add rebuilding years:
+    if("Fully exploited" %in% dat_to_check) { 
+    #data_collapse_to_fully_exploited <- d[(rows_where_collapse_begins[i]+1):nrow(d), ]
+  #row_with_first_fully_exploited <- (1:nrow(data_collapse_to_fully_exploited))[data_collapse_to_fully_exploited$status == "Fully exploited"][1]
+      first_fully_exploited_row <- min(rows_to_check[d[rows_to_check, "status"] == "Fully exploited"], na.rm = TRUE) # na.rm is needed because rows_to_check is one bigger than the number of rows so there will be NAs (indexing non-existent rows)
+      #print(first_fully_exploited_row)
+      #print(min(rows_to_check))
+      #browser()
+    d[min(rows_to_check):first_fully_exploited_row, ][d[min(rows_to_check):first_fully_exploited_row, ]$status=="Overexploited", "adjusted_status"] <- factor(3, levels = 1:6, labels = status_labels) # these are now rebuilding 
+    #d[(rows_where_collapse_begins[i] + 1):(rows_where_collapse_begins[i] + row_with_first_fully_exploited - 1), "adjusted_status"] <- factor(3, levels = 1:6, labels = status_labels) # these are now rebuilding
 }
 }
 }
@@ -112,6 +129,22 @@ if(!"Fully exploited" %in% d[(rows_where_collapse_begins[i]+1):nrow(d), "status"
 # if we added a 1.5Cmax fake year at the end, remove it before giving
 # back results:
 if(c_max_1.5 | fully_exploited_0.28) d <- d[-nrow(d),]
+
+# One final tweak:
+# Despite what Table 2 says, if the last year has the max year of
+# catch, adjust the max to 1.5 * c_max but then only let years be
+# classified as "developing" or "underdeveloped". Nothing else is
+# allowed.
+#browser()
+if(c_max_1.5) {
+# undeveloped
+d[x < 0.1 * c_max, "adjusted_status"] <- factor(1, levels = 1:6, labels = status_labels)
+# developing
+d[x >= 0.1 * c_max, "adjusted_status"] <- factor(2, levels = 1:6, labels = status_labels) 
+#browser()
+}
+
+
 return(list(status = d$adjusted_status, c_max_1.5 = c_max_1.5, fully_exploited_0.28 = fully_exploited_0.28))
 ### A list containing the named elements: ``status'', the stock
 ### status; ``c_max_1.5'', whether the maximum was assumed to be 1.5

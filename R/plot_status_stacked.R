@@ -1,7 +1,7 @@
 # ====================================================================
 # Created by:    Sean Anderson, sean@seananderson.ca
 # Created:       Mar 19, 2012
-# Last modified: Mar 19, 2012
+# Last modified: Mar 28, 2012
 # Purpose:       Make the typical stacked polygon status plot.
 # ====================================================================
 
@@ -49,13 +49,12 @@ if(is.null(xlim)) xlim <- range(status_summary_cumsum$year)
 with(status_summary_cumsum, plot(1,1, xlim = xlim, ylim = c(0, 100), yaxs = "i", xaxs = "i", type = "n", xlab = xlab, ylab = ylab, ...))
 
 for(i in 2:(ncol(status_summary_cumsum) - 1)) polygon(c(status_summary_cumsum$year,  rev(status_summary_cumsum$year)), c(status_summary_cumsum[,i]*100, rev(status_summary_cumsum[,i+1])*100), border = NA, col = col_df$col[i - 1])
+invisible(list(status_summary_cumsum = status_summary_cumsum, status_summary = status_summary))
 },ex=function(){
  data(srdb)
  library(plyr)
  out <- ddply(srdb, "assessid", transform, status = get_froese_etal_2012_status(catch)$status)
  with(out, plot_status_stacked(tsyear, status))
 })
-
-  
 
 
